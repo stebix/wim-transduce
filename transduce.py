@@ -6,21 +6,21 @@ import argparse
 import h5py
 import tqdm
 
-from typing import (NewType, Union, Dict, List, Tuple, Callable,
-                    Sequence, Optional)
-
+from typing import (Union, Dict, Sequence,
+                    Optional)
 from crawler import get_paths
 from loader import load
 from lmtrafo import create_markup_dicts
-from datrafo import Resampler
+from datrafo import DummyResampler, Resampler
 
 
-PathLike = NewType(name='PathLike', tp=Union[str, pathlib.Path])
+PathLike = Union[str, pathlib.Path]
 RAW_STEM = 'raw'
 LABEL_STEM = 'label'
 LANDMARK_STEM = 'landmark'
 INTERNAL_PATHS = ['raw', 'label', 'landmark']
 WIMMER_VOXEL_SIZE = (0.15, 0.15, 0.20)
+DEFAULT_VOXEL_SIZE = (0.099, 0.099, 0.099)
 
 
 def main():
@@ -33,10 +33,13 @@ def main():
     parser.add_argument('sourcedir', type=str, help='Source directory for the Wimmer dataset.')
     parser.add_argument('targetdir', type=str,
                         help='Target directory where the HDF5 files are stored.')
-    parser.add_argument('--resample', '-r', nargs=3, metavar=('width', 'height', 'depth'),
-                        help='Resample the CT data to the given voxel size.')
+    parser.add_argument('--noresample', '-n', action='store_true',
+                        help='Skip resampling altogether and merely transduce into HDF5 file.')
+    parser.add_argument('--resample', '-r', nargs=3, default=DEFAULT_VOXEL_SIZE,
+                        metavar=('width', 'height', 'depth'),
+                        help=f'Resample the CT data to the given voxel size. Default: {DEFAULT_VOXEL_SIZE}')
     parser.add_argument('--original_voxel_size', nargs=3, default=WIMMER_VOXEL_SIZE,
-                        help='Override defaults for Wimmer dataset voxel size.',
+                        help=f'Override defaults for Wimmer dataset voxel size. Default: {WIMMER_VOXEL_SIZE}',
                         metavar=('width', 'height', 'depth'))
     parser.add_argument('--modality', type=str, choices=['CT', 'uCT', 'all'], default='all',
                         help='Select only a single modality to be transduced.')
@@ -54,10 +57,10 @@ def main():
     pathmap = sieve_modality(get_paths(args.sourcedir), args.modality)
     print(pathmap)
     original_voxel_size = tuple((float(f) for f in args.original_voxel_size))
-    if args.resample:
-        resampled_voxel_size = tuple((float(f) for f in args.resample))
-    else:
-        resampled_voxel_size = original_voxel_size
+    resampled_voxel_size = tuple((float(f) for f in args.resample))
+    if args.noresample:
+        original_voxel_size = None
+        resampled_voxel_size = None
 
     transduce(pathmap=pathmap, target_dir=args.targetdir,
               resampled_voxel_size=resampled_voxel_size,
@@ -93,7 +96,12 @@ def transduce(pathmap: Dict, target_dir: PathLike,
         - Maybe resample spatially 
     """
     target_dir = pathlib.Path(target_dir)
-    resampler = Resampler(original_voxel_size, resampled_voxel_size)
+    if resampled_voxel_size is None and original_voxel_size is None:
+        resampler = DummyResampler()
+        print('Using dummy resampler ...')
+    else:
+        print('Using actual resampler ...')
+        resampler = Resampler(original_voxel_size, resampled_voxel_size)
     pathmap_iter = pathmap.items() if no_pbar else tqdm.tqdm(pathmap.items())
     for dset_id, modalities in pathmap_iter:
         for modality, instance_pathmap in modalities.items():

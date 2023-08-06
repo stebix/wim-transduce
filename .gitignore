@@ -1,0 +1,10 @@
+# gitignore file for ht wim-transduce project
+# October 2021 by stbx
+
+.vscode/
+cache/
+uctcache/
+dataoverview/
+
+*.hdf5
+__pycache__/

@@ -10,6 +10,19 @@ from typing import (Sequence, Dict, List, Tuple,
                     Union, Optional, Any)
 
 
+class DummyResampler:
+
+    def __init__(self, *args, **kwargs) -> None:
+        self.backend = None
+        self.mode = None
+        self.device = None
+    
+    def __call__(self, array: np.ndarray) -> np.ndarray:
+        return array
+
+
+
+
 class Resampler:
 
     valid_backends = ['scipy', 'torch']
